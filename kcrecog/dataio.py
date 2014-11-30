@@ -48,14 +48,12 @@ def read_raw_data(fname):
 
         data = np.fromfile(infile, dtype=np.uint16).reshape(shape)
 
-    # Validate the image
-    if data.max() == data.min():
-        raise InvalidImage("Image seems to be empty")
-    if (tmax > 255) or (tmin < 0):
-        raise InvalidImage("Image range too large for uint8")
-
     data[data < tmin] = tmin
     data[data > tmax] = tmax
+    data -= tmin
+    if (tmax - tmin) > 255:
+        raise InvalidImage("Image range too large for uint8.", data)
+
     return data.astype(np.uint8)
 
 
@@ -83,16 +81,7 @@ def read_seq(fnames):
     if len(fnames) < conf.MIN_SEQ_LEN:
         raise InvalidSequence("Sequence length {} too short, should be {}"
                               .format(len(fnames), conf.MIN_SEQ_LEN))
-    imgs = []
-    for fname in Progress(fnames):
-        try:
-            imgs.append(read_raw_data(fname))
-        except InvalidImage as e:
-            print(e)
-
-    if len(fnames) < conf.MIN_SEQ_LEN:
-        raise InvalidSequence("Sequence length {} too short, should be {}"
-                              .format(len(fnames), conf.MIN_SEQ_LEN))
+    imgs = [read_raw_data(fname) for fname in Progress(fnames)]
 
     # Compute "mean" image and scale to fit datatype
     sumimg = sum(img.astype(np.float) for img in imgs)
@@ -201,8 +190,9 @@ def _post_process_bb(x0, x1, imgsize):
 class InvalidImage(Exception):
     """Exception class to be raised when image file fails preprocessing"""
 
-    def __init__(self, value):
+    def __init__(self, value, img):
         self._value = value
+        self._img = img
 
     def __str__(self):
         return repr(self._value)
@@ -225,7 +215,7 @@ if __name__ == '__main__':
     import os
     pl.gray()
 
-    DATADIR = '/media/dsuess/TOSHIBA/PCO/'
+    DATADIR = '/data/PCO/'
     # DATADIR = '../data/'
     seq_labels = {'_'.join(fname.split('_')[:-1])
                   for fname in os.listdir(DATADIR)
@@ -240,6 +230,8 @@ if __name__ == '__main__':
         # imshow(read_img(fname))
 
     for slab in seq_labels:
+        if len(glob(DATADIR + slab + '*.b16')) < conf.MIN_SEQ_LEN:
+            continue
         try:
             imgs = read_seq(glob(DATADIR + slab + '*.b16'))
             imsshow(imgs[:10], layout='v')
