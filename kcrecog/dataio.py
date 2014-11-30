@@ -61,12 +61,13 @@ def read_img(fname):
     """Reads the data from the file given and finds the relevant region.
 
     :param fname: Path to file to read from
-    :returns: Preprocessed interesting region from the image as array
+    :returns: Preprocessed interesting region from the image as array and
+        the upper left corner of the relevant region in the original image.
 
     """
     data = read_raw_data(fname)
     x0, x1 = _find_frame(data, method='noisy')
-    return data[x0[1]:x1[1], x0[0]:x1[0]]
+    return data[x0[1]:x1[1], x0[0]:x1[0]], x0
 
 
 def read_seq(fnames):
@@ -75,7 +76,8 @@ def read_seq(fnames):
     used to extract to the bounding box.
 
     :param list fnames: List of filenames to load
-    :returns: List of 2D arrays with same shape containing the images
+    :returns: List of 2D arrays with same shape containing the images and
+        the upper left corner of the relevant region in the original image.
 
     """
     if len(fnames) < conf.MIN_SEQ_LEN:
@@ -90,7 +92,7 @@ def read_seq(fnames):
 
     x0, x1 = _find_frame(sumimg, method='clean')
     return np.array([img[x0[1]:x1[1], x0[0]:x1[0]].copy() for img in imgs],
-                    dtype=np.uint8)
+                    dtype=np.uint8), x0
 
 
 ###############################################################################
@@ -233,7 +235,7 @@ if __name__ == '__main__':
         if len(glob(DATADIR + slab + '*.b16')) < conf.MIN_SEQ_LEN:
             continue
         try:
-            imgs = read_seq(glob(DATADIR + slab + '*.b16'))
+            imgs, _ = read_seq(glob(DATADIR + slab + '*.b16'))
             imsshow(imgs[:10], layout='v')
         except InvalidSequence as e:
             print(e)
