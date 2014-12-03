@@ -4,14 +4,21 @@
 
 from __future__ import division, print_function
 
+import sys
+import warnings
 from glob import glob
 from matplotlib import pyplot as pl
-from os import path, listdir
+from os import listdir, path
 from random import shuffle
 
 import numpy as np
 
 from kcrecog.dataio import read_b16
+
+
+DATADIR = '/media/dsuess/TOSHIBA/PCO/'
+LABELDIR = 'labels/'
+MIN_SLEN = 100
 
 
 def extract_sequence_labels(ddir):
@@ -69,11 +76,7 @@ def mouse_click(event, pointlist, img):
     pl.draw()
 
 
-if __name__ == '__main__':
-    DATADIR = '/data/PCO/'
-    LABELDIR = 'tmp/'
-    MIN_SLEN = 100
-
+def run_labeler():
     seqlabels = {slab for slab in extract_sequence_labels(DATADIR)
                  if (len(glob(path.join(DATADIR, slab + '*.b16'))) > MIN_SLEN)
                  and (slab.startswith('2014'))}
@@ -89,11 +92,38 @@ if __name__ == '__main__':
         fname = fnames.pop()
         img = read_b16(fname)
         imshow(img)
-        cid = fig.canvas.mpl_connect('button_press_event',
-                                     lambda event: mouse_click(event, pointlist, img))
+        fig.canvas.mpl_connect('button_press_event',
+                               lambda event: mouse_click(event, pointlist, img))
         pl.show()
 
         newname = path.join(LABELDIR, path.splitext(path.split(fname)[1])[0] + '.txt')
         np.savetxt(newname, pointlist)
         print("Saved {} points to {}".format(len(pointlist), newname))
 
+
+def run_viewer():
+    for fname in listdir(LABELDIR):
+        datafile = path.join(DATADIR, path.splitext(path.split(fname)[1])[0] + '.b16')
+        img = read_b16(datafile)
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=UserWarning, append=1)
+            pointlist = np.loadtxt(path.join(LABELDIR, fname))
+
+        print("Found {} ions in {}".format(len(pointlist), fname))
+
+        ax = pl.gca()
+        ax.clear()
+        imshow(img)
+        ax.scatter([x for x, _ in pointlist], [y for _, y in pointlist],
+                color='r', marker='+', s=40)
+        pl.show()
+
+if __name__ == '__main__':
+    mode = 'view' if len(sys.argv) <= 1 else sys.argv[1]
+
+    if mode == 'new':
+        run_labeler()
+    elif mode == 'view':
+        run_viewer()
+    else:
+        print("ERROR: invalid mode")
