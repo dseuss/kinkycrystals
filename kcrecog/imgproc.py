@@ -16,7 +16,7 @@ except ImportError:
 
 
 ###############################################################################
-#                              Main IO Functions                              #
+#                      Loading sequences & frame finding                      #
 ###############################################################################
 
 def read_seq(fnames):
@@ -25,10 +25,17 @@ def read_seq(fnames):
     used to extract to the bounding box.
 
     :param list fnames: List of filenames to load
-    :returns: List of 2D arrays with same shape containing the images and
-        the upper left corner of the relevant region in the original image.
+    :returns: imgs, props
+        imgs: Dict of 2D arrays with same shape containing the images with
+            the key given by the label of the file (the part of the filename
+            between the last '_' and the file extension)
+        props: Dict with additional properties of the sequence
+            - x0: upper left corner of the relevant region in the original
+            image.
+            - max: Maximum brightness value over the whole sequence
 
     """
+    assert(len(fnames) > 0)
     imgs = [_read_img(fname) for fname in Progress(fnames)]
 
     # Compute "mean" image and scale to fit datatype
@@ -37,13 +44,10 @@ def read_seq(fnames):
     sumimg = (255 / sumimg.max() * sumimg).astype(np.uint8)
 
     x0, x1 = _find_frame(sumimg)
-    return np.array([img[x0[1]:x1[1], x0[0]:x1[0]].copy() for img in imgs],
-                    dtype=np.uint8), x0
+    return dict(izip((io.extract_label(fname) for fname in fnames),
+                     (img[x0[1]:x1[1], x0[0]:x1[0]] for img in imgs))), \
+        {'x0': x0, 'max': np.max(imgs)}
 
-
-###############################################################################
-#                          Post Processing Functions                          #
-###############################################################################
 
 def _read_img(fname):
     """Reads the data from the file and converts it to the dataformat used.
@@ -136,6 +140,12 @@ def _postprocess_bb(x0, x1, imgsize):
 
 
 ###############################################################################
+#                               Ion recognition                               #
+###############################################################################
+
+
+
+###############################################################################
 #                                 Exceptions                                  #
 ###############################################################################
 
@@ -148,3 +158,38 @@ class InvalidImage(Exception):
 
     def __str__(self):
         return repr(self._value)
+
+
+###############################################################################
+#                                Testing Stuff                                #
+###############################################################################
+
+if __name__ == '__main__':
+    import warnings
+    from matplotlib import pyplot as pl
+    from os import path
+    from glob import glob
+    from itertools import izip
+    from tools.plot import imsshow
+
+    DATADIR = '/media/dsuess/TOSHIBA/PCO/'
+    LABELDIR = '../labels/'
+    # SEQNAME = '2014_10_28_11_55'
+    SEQNAME = '2014_11_06_17_49'
+
+    lnames = glob(LABELDIR + SEQNAME + '*.txt')
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=UserWarning, append=1)
+        labels = {io.extract_label(lname): np.loadtxt(lname) for lname in lnames}
+
+    inames = [iname for iname in glob(DATADIR + SEQNAME + '*.b16')]
+    imgs, x0 = read_seq(inames)
+
+    for label in labels.keys():
+        print("Reading {} with {} labels".format(label, len(labels[label])))
+        rawimg = io.read_b16(DATADIR + SEQNAME + '_' + label + '.b16')
+        pointlist = labels[label]
+        axes = imsshow([rawimg, imgs[label]], layout='v', show=False)
+        axes[0].scatter([x for x, _ in pointlist], [y for _, y in pointlist],
+                        color='w', marker='+', s=40, lw=1)
+        pl.show()

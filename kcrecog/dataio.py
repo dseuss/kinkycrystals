@@ -3,6 +3,9 @@
 """Routines for the processing of the raw data files from the CCD camera"""
 
 from __future__ import division, print_function
+
+from os import path
+
 import numpy as np
 
 
@@ -41,3 +44,14 @@ def read_b16(fname):
     data[data > tmax] = tmax
     data -= tmin
     return data
+
+
+def extract_label(fname):
+    """Extracts the file label (the part of the filename between the last '_'
+    and the file extension)
+
+    :param str fname: Full path or just the file name
+    :returns: Label of the file
+    """
+    filelabel = path.splitext(path.split(fname)[1])[0]
+    return filelabel.split('_')[-1]
