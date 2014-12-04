@@ -5,6 +5,7 @@ from __future__ import division, print_function
 
 import cv2 as cv
 import numpy as np
+from itertools import izip
 
 import conf
 import dataio as io
@@ -44,9 +45,11 @@ def read_seq(fnames):
     sumimg = (255 / sumimg.max() * sumimg).astype(np.uint8)
 
     x0, x1 = _find_frame(sumimg)
-    return dict(izip((io.extract_label(fname) for fname in fnames),
-                     (img[x0[1]:x1[1], x0[0]:x1[0]] for img in imgs))), \
-        {'x0': x0, 'max': np.max(imgs)}
+
+    imgs = dict(izip((io.extract_label(fname) for fname in fnames),
+                     (img[x0[1]:x1[1], x0[0]:x1[0]] for img in imgs)))
+    props = {'x0': x0, 'max': max(np.max(img) for img in imgs.itervalues())}
+    return imgs, props
 
 
 def _read_img(fname):
@@ -183,13 +186,15 @@ if __name__ == '__main__':
         labels = {io.extract_label(lname): np.loadtxt(lname) for lname in lnames}
 
     inames = [iname for iname in glob(DATADIR + SEQNAME + '*.b16')]
-    imgs, x0 = read_seq(inames)
+    imgs, props = read_seq(inames)
+    print(props)
 
     for label in labels.keys():
         print("Reading {} with {} labels".format(label, len(labels[label])))
         rawimg = io.read_b16(DATADIR + SEQNAME + '_' + label + '.b16')
         pointlist = labels[label]
-        axes = imsshow([rawimg, imgs[label]], layout='v', show=False)
+        axes = imsshow([rawimg, imgs[label]], layout='v', show=False,
+                       props={'vmin': 0, 'vmax': props['max']})
         axes[0].scatter([x for x, _ in pointlist], [y for _, y in pointlist],
                         color='w', marker='+', s=40, lw=1)
         pl.show()
