@@ -1,0 +1,51 @@
+#!/usr/bin/env python
+# encoding: utf-8
+
+from __future__ import division, print_function
+
+from glob import glob
+from matplotlib import pyplot as pl
+from os.path import split, splitext, join
+from time import sleep
+
+from kcrecog.dataio import read_b16
+from tools.plot import imshow
+from tools.helpers import Progress
+
+
+def view(files, duration=1):
+    ax = pl.subplot(111)
+    pl.ion()
+    pl.show()
+
+    for f in files:
+        img = read_b16(f)
+        imshow(img, ax=ax, show=False)
+        ax.set_title(split(f)[1])
+        pl.draw()
+        sleep(duration)
+
+
+def to_img(files, targetdir, dpi=80):
+    for f in Progress(files):
+        img = read_b16(f)
+        figsize = img.shape[1] / dpi, img.shape[0] / dpi
+        fig = pl.figure(figsize=figsize, dpi=dpi)
+        ax = fig.add_axes([0, 0, 1, 1])
+        ax.grid(False)
+        ax.imshow(img)
+        pl.savefig(join(targetdir, splitext(split(f)[1])[0] + '.png'))
+        # pl.show()
+
+if __name__ == '__main__':
+    # view(sorted(glob('/home/dsuess/tmp/PCO/2014_12_11_*01ms*.b16'))[:200:10],
+         # duration=1)
+    # view(sorted(glob('/home/dsuess/tmp/PCO/2014_12_11_*05ms*.b16'))[:200:10],
+         # duration=1)
+    # view(sorted(glob('/home/dsuess/tmp/PCO/2014_12_11_*10ms*.b16'))[:200:10],
+         # duration=1)
+    # view(sorted(glob('/home/dsuess/tmp/PCO/2014_12_11_*50ms*.b16'))[:200:10],
+         # duration=1)
+
+    to_img(glob('/home/dsuess/tmp/PCO/2014_12_11_*50ms*.b16'),
+           '/home/dsuess/tmp/imgs/')
