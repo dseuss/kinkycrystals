@@ -52,6 +52,25 @@ def read_seq(fnames):
     return imgs, props
 
 
+def find_frame(data):
+    """Finds the interesting frame of an image.
+
+    :param data: Image as 2D array of type uint8
+    :returns: (x0, x1), where x0 is the upper left corner and x1 the lower
+        right corner of the bounding rectangle
+
+    """
+    assert data.dtype == np.uint8, "Image has wrong dtype."
+
+    # TODO Separate preprocessing routine for less noisy images
+    buf = _extract_interesting_region(data)
+    rect = cv.boundingRect(buf)
+    x0, x1 = _postprocess_bb(x0=(rect[0], rect[1]),
+                             x1=(rect[0] + rect[2], rect[1] + rect[3]),
+                             imgsize=buf.shape)
+    return x0, x1
+
+
 def _read_img(fname):
     """Reads the data from the file and converts it to the dataformat used.
     Also performs some sanity checks of the data.
@@ -63,7 +82,7 @@ def _read_img(fname):
     data = io.read_b16(fname)
     if (data.max() > 255) or (data.min() < 0):
         raise InvalidImage("Image data range too large for uint8 format")
-    return data
+    return np.array(data, dtype=np.uint8)
 
 
 def _extract_interesting_region(data):
@@ -96,25 +115,6 @@ def _extract_interesting_region(data):
     _, cc = cv.connectedComponents(buf.astype(np.uint8))
     largest_component = np.argmax(np.bincount(cc.ravel())[1:]) + 1
     return (cc == largest_component).astype(np.uint8)
-
-
-def _find_frame(data):
-    """Finds the interesting frame of an image.
-
-    :param data: Image as 2D array of type uint8
-    :returns: (x0, x1), where x0 is the upper left corner and x1 the lower
-        right corner of the bounding rectangle
-
-    """
-    assert data.dtype == np.uint8, "Image has wrong dtype."
-
-    # TODO Separate preprocessing routine for less noisy images
-    buf = _extract_interesting_region(data)
-    rect = cv.boundingRect(buf)
-    x0, x1 = _postprocess_bb(x0=(rect[0], rect[1]),
-                             x1=(rect[0] + rect[2], rect[1] + rect[3]),
-                             imgsize=buf.shape)
-    return x0, x1
 
 
 def _postprocess_bb(x0, x1, imgsize):
@@ -161,40 +161,3 @@ class InvalidImage(Exception):
 
     def __str__(self):
         return repr(self._value)
-
-
-###############################################################################
-#                                Testing Stuff                                #
-###############################################################################
-
-if __name__ == '__main__':
-    import warnings
-    from matplotlib import pyplot as pl
-    from os import path
-    from glob import glob
-    from itertools import izip
-    from tools.plot import imsshow
-
-    DATADIR = '/media/dsuess/TOSHIBA/PCO/'
-    LABELDIR = '../labels/'
-    # SEQNAME = '2014_10_28_11_55'
-    SEQNAME = '2014_11_06_17_49'
-
-    lnames = glob(LABELDIR + SEQNAME + '*.txt')
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", category=UserWarning, append=1)
-        labels = {io.extract_label(lname): np.loadtxt(lname) for lname in lnames}
-
-    inames = [iname for iname in glob(DATADIR + SEQNAME + '*.b16')]
-    imgs, props = read_seq(inames)
-    print(props)
-
-    for label in labels.keys():
-        print("Reading {} with {} labels".format(label, len(labels[label])))
-        rawimg = io.read_b16(DATADIR + SEQNAME + '_' + label + '.b16')
-        pointlist = labels[label]
-        axes = imsshow([rawimg, imgs[label]], layout='v', show=False,
-                       props={'vmin': 0, 'vmax': props['max']})
-        axes[0].scatter([x for x, _ in pointlist], [y for _, y in pointlist],
-                        color='w', marker='+', s=40, lw=1)
-        pl.show()

@@ -46,12 +46,35 @@ def read_b16(fname):
     return data
 
 
-def extract_label(fname):
-    """Extracts the file label (the part of the filename between the last '_'
+def extract_id(fname):
+    """Extracts the file's id (the part of the filename between the last '_'
     and the file extension)
 
     :param str fname: Full path or just the file name
-    :returns: Label of the file
+    :returns: ID of the file
+
+    >>> extract_id('datadir/2014_11_11_001.b16')
+    '001'
     """
     filelabel = path.splitext(path.split(fname)[1])[0]
     return filelabel.split('_')[-1]
+
+
+
+def extract_label(fname):
+    """Extracts the file's label (everything of the filename except for the
+    extension and the id)
+
+    :param str fname: Full path or just the file name
+    :returns: Label of the file
+
+    >>> extract_label('datadir/2014_11_11_001.b16')
+    '2014_11_11'
+    """
+    filelabel = path.splitext(path.split(fname)[1])[0]
+    return '_'.join(filelabel.split('_')[:-1])
+
+
+if __name__ == '__main__':
+    import doctest
+    doctest.testmod()
