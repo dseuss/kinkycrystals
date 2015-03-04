@@ -130,22 +130,21 @@ def run_labeler(abs_fileglob, labeldir):
         print("Saved {} points".format(len(fig._pointlist)))
 
 
-# def run_viewer():
-    # for fname in listdir(LABELDIR):
-        # datafile = path.join(DATADIR, path.splitext(path.split(fname)[1])[0] + '.b16')
-        # img = read_b16(datafile)
-        # with warnings.catch_warnings():
-            # warnings.filterwarnings("ignore", category=UserWarning, append=1)
-            # pointlist = np.loadtxt(path.join(LABELDIR, fname))
+def run_viewer(abs_fileglob):
+    print("Globbing for " + abs_fileglob + "...", end='')
+    fnames = glob(abs_fileglob)
+    print("{} matches found.".format(len(fnames)))
+    shuffle(fnames)
 
-        # print("Found {} ions in {}".format(len(pointlist), fname))
+    for fname in fnames:
+        img = read_b16(fname)
 
-        # ax = pl.gca()
-        # ax.clear()
-        # imshow(img)
-        # ax.scatter([x for x, _ in pointlist], [y for _, y in pointlist],
-                # color='r', marker='+', s=40)
-        # pl.show()
+        ax = pl.subplot(111)
+        ax.clear()
+        imshow(img, ax)
+        ax.set_title(fname)
+        pl.show()
+
 
 if __name__ == '__main__':
     args = docopt.docopt(__doc__)
@@ -153,5 +152,5 @@ if __name__ == '__main__':
     if args['labeling']:
         run_labeler(path.join(args['--datadir'], args['--fileglob']),
                     args['--labeldir'])
-    # elif args['view']:
-        # run_viewer()
+    elif args['view']:
+        run_viewer(path.join(args['--datadir'], args['--fileglob']))
