@@ -1,3 +1,4 @@
 *.png
 *.b16
 data/
+tests/conf.py

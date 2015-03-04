@@ -6,6 +6,7 @@ from __future__ import division, print_function
 import cv2 as cv
 import numpy as np
 from itertools import izip
+from skimage.measure import label, regionprops
 
 import conf
 import dataio as io
@@ -13,7 +14,8 @@ import dataio as io
 try:
     from tools.helpers import Progress
 except ImportError:
-    Progress = lambda x: x
+    def Progress(iter):
+        return iter
 
 
 ###############################################################################
@@ -37,14 +39,14 @@ def read_seq(fnames):
 
     """
     assert(len(fnames) > 0)
-    imgs = [_read_img(fname) for fname in Progress(fnames)]
+    imgs = [_load_img(fname) for fname in Progress(fnames)]
 
     # Compute "mean" image and scale to fit datatype
     sumimg = sum(img.astype(np.float) for img in imgs)
     sumimg -= sumimg.min()
     sumimg = (255 / sumimg.max() * sumimg).astype(np.uint8)
 
-    x0, x1 = _find_frame(sumimg)
+    x0, x1 = find_frame(sumimg)
 
     imgs = dict(izip((io.extract_label(fname) for fname in fnames),
                      (img[x0[1]:x1[1], x0[0]:x1[0]] for img in imgs)))
@@ -64,16 +66,32 @@ def find_frame(data):
 
     # TODO Separate preprocessing routine for less noisy images
     buf = _extract_interesting_region(data)
-    rect = cv.boundingRect(buf)
-    x0, x1 = _postprocess_bb(x0=(rect[0], rect[1]),
-                             x1=(rect[0] + rect[2], rect[1] + rect[3]),
+    bbox = regionprops(buf)[0].bbox
+    x0, x1 = _postprocess_bb(x0=(bbox[1], bbox[0]),
+                             x1=(bbox[3], bbox[2]),
                              imgsize=buf.shape)
     return x0, x1
 
 
-def _read_img(fname):
+def load_valid_img(fname):
+    """Loads the image from the given b16 file and checks whether the image
+    contains some information (i.e. is not unicolor).
+
+    :param fname: Path to file to read from
+    :returns: Image as 2D array in uint8 format
+
+    """
+    data = io.read_b16(fname)
+    max_val, min_val = data.max(), data.min()
+    if (max_val > 255) or (min_val < 0):
+        raise InvalidImage("Image data range too large for uint8 format.")
+    if (max_val == min_val):
+        raise InvalidImage("Image is blank.")
+    return np.array(data, dtype=np.uint8)
+
+
+def _load_img(fname):
     """Reads the data from the file and converts it to the dataformat used.
-    Also performs some sanity checks of the data.
 
     :param fname: Path to file to read from
     :returns: Image as 2D array in uint8 format
@@ -81,7 +99,7 @@ def _read_img(fname):
     """
     data = io.read_b16(fname)
     if (data.max() > 255) or (data.min() < 0):
-        raise InvalidImage("Image data range too large for uint8 format")
+        raise InvalidImage("Image data range too large for uint8 format.")
     return np.array(data, dtype=np.uint8)
 
 
@@ -108,13 +126,13 @@ def _extract_interesting_region(data):
     buf = cv.morphologyEx(buf, cv.MORPH_OPEN, kernel, iterations=3)
 
     # Closing to get connected area where signal should be
-    kernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, (21, 7))
+    kernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, (31, 7))
     buf = cv.morphologyEx(buf, cv.MORPH_CLOSE, kernel, iterations=5)
 
     # Find the largest connected component
-    _, cc = cv.connectedComponents(buf.astype(np.uint8))
+    cc = label(buf, neighbors=4, background=0) + 1
     largest_component = np.argmax(np.bincount(cc.ravel())[1:]) + 1
-    return (cc == largest_component).astype(np.uint8)
+    return cc == largest_component
 
 
 def _postprocess_bb(x0, x1, imgsize):
@@ -129,9 +147,10 @@ def _postprocess_bb(x0, x1, imgsize):
     xlen, ylen = x1[0] - x0[0], x1[1] - x0[1]
     # Check whether the bbox is to small
     if (xlen < conf.BBOX_MIN_X) or (ylen < conf.BBOX_MIN_Y):
-        raise InvalidImage("Bounding box too small: {} should be at least {}"
-                           .format((xlen, ylen),
-                                   (conf.BBOX_MIN_X, conf.BBOX_MIN_Y)))
+        msg = "Bounding box too small: {} should be at least {}" \
+            .format((xlen, ylen),
+                    (conf.BBOX_MIN_X, conf.BBOX_MIN_Y))
+        raise InvalidImage(msg, debuginfo=(x0, x1))
 
     # Scale the rectangle
     x0 = (max(x0[0] - xlen * (conf.BBOX_SCALE_X - 1) / 2, 0),
@@ -146,8 +165,6 @@ def _postprocess_bb(x0, x1, imgsize):
 #                               Ion recognition                               #
 ###############################################################################
 
-
-
 ###############################################################################
 #                                 Exceptions                                  #
 ###############################################################################
@@ -155,9 +172,9 @@ def _postprocess_bb(x0, x1, imgsize):
 class InvalidImage(Exception):
     """Exception class to be raised when image file fails preprocessing"""
 
-    def __init__(self, value, img):
+    def __init__(self, value, debuginfo=None):
         self._value = value
-        self._img = img
+        self._debuginfo = debuginfo
 
     def __str__(self):
         return repr(self._value)

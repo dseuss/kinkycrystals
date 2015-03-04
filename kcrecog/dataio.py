@@ -46,14 +46,14 @@ def read_b16(fname):
     return data
 
 
-def extract_id(fname):
+def extract_token(fname):
     """Extracts the file's id (the part of the filename between the last '_'
     and the file extension)
 
     :param str fname: Full path or just the file name
     :returns: ID of the file
 
-    >>> extract_id('datadir/2014_11_11_001.b16')
+    >>> extract_token('datadir/2014_11_11_001.b16')
     '001'
     """
     filelabel = path.splitext(path.split(fname)[1])[0]

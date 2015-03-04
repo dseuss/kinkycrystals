@@ -3,8 +3,8 @@
 """Global configuration"""
 
 # Factor to scale the sides of the bounding rectangle with
-BBOX_SCALE_X = 1.5
-BBOX_SCALE_Y = 2.0
+BBOX_SCALE_X = 1.1
+BBOX_SCALE_Y = 1.2
 
 # Minmal dimensions of the bounding box considered valid
 BBOX_MIN_X = 100
