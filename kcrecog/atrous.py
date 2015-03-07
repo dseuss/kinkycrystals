@@ -6,6 +6,7 @@ from __future__ import division, print_function
 import matplotlib.pyplot as pl
 import numpy as np
 from scipy.ndimage.filters import convolve
+from skimage.filter import threshold_otsu
 
 from .dataio import read_b16
 from tools.helpers import Progress
@@ -30,7 +31,9 @@ def atrous_wavelet(source, level, mother_wavelet=MOTHER_WAVELET):
     for i in Progress(range(level)):
         img_smooth = _smoothen(img, kernel)
         kernel = _interleave_zeros(kernel)
-        wavelets.append(img_smooth - img)
+        wavelet = img_smooth - img
+        _threshold_to_zero(wavelet, _estimate_threshold(wavelet))
+        wavelets.append(wavelet)
         img = img_smooth
 
     return [img] + wavelets
@@ -65,21 +68,53 @@ def _interleave_zeros(arr):
     return np.array(newarr)
 
 
+def _threshold_to_zero(img, threshold):
+    """Replaces values in img below threshold by 0 in place.
+
+    :param img: ndarray to be thresholded
+    :param threshold: Threshold
+
+    >>> a = np.array([1, 3, 2, 4]); _threshold_to_zero(a, 2.5); list(a)
+    [0, 3, 0, 4]
+    """
+    img[img < threshold] = 0
+
+
+def _estimate_threshold(img, coeff=3):
+    """Estimates the threshold used for noise supression using the MAD est.
+
+                        t = coeff * sigma / 0.67 ,
+
+    where sigma is the media absolute deviation of the wavelet coefficients
+    from their median and the coeff is customary taken to be 3.
+
+    :param img: Image to be thresholded
+    :param coeff: Coefficient used in the thresholding formula (default: 3)
+    :returns: Thresholding value t
+
+    """
+    sigma = np.median(np.abs(img - np.median(img)))
+    return coeff * sigma / 0.67
+
+
 if __name__ == '__main__':
     from tools.plot import imsshow
-    from scipy.ndimage import zoom
     pl.figure(0, figsize=(8, 16))
 
-    img = read_b16('tests/data/2015_02_13_17_14_0033.b16')
+    # img = read_b16('tests/data/2015_02_13_17_14_0033.b16')
+    img = read_b16('tests/data/2015_02_13_17_14_0048.b16')
     # img = read_b16('/Volumes/TOSHIBA EXT/PCO/2014_12_10_10ms_0182.b16')
-    # img = zoom(img, .5)
 
-    wavelets = atrous_wavelet(img, 4)
-    recov = np.prod(wavelets[1:], axis=0)
+    LEVELS_MIN = 4
+    LEVELS_MAX = 7
+    wavelets = atrous_wavelet(img, LEVELS_MAX)
+    recov = [np.log(1 + np.prod(wavelets[1:i], axis=0))
+             for i in range(LEVELS_MIN, LEVELS_MAX + 1)]
 
-    axs = imsshow([img, recov] + wavelets, layout='v', show=False)
-    labels = ['Original', 'Recovery', 'Rest']
-    labels += ['W_{}'.format(i) for i in range(1, len(wavelets))]
+    axs = imsshow([img] + recov, layout='v', show=False)
+    labels = ['Original'] + ['Recov. for J={}'.format(i)
+                             for i in range(LEVELS_MIN, LEVELS_MAX + 1)]
+    # labels += ['W_{}'.format(i) for i in range(1, len(wavelets))]
     for ax, label in zip(axs, labels):
         ax.set_title(label)
 
